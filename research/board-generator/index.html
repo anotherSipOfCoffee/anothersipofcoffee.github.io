@@ -14,6 +14,16 @@ select,input[type=text],textarea{width:100%;padding:5px;background:var(--bg);col
 input[type=range]{width:100%}.v{float:right;color:var(--ink)}
 button{padding:7px 10px;margin:3px 3px 0 0;background:var(--ink);color:var(--bg);border:0;border-radius:4px;font:inherit;cursor:pointer}
 button.s{background:transparent;color:var(--ink);border:1px solid var(--ln)}
+.toggle-row{display:flex;align-items:center;gap:8px;margin:10px 0 3px}
+.toggle-name{flex:1;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--mu)}
+.switch{position:relative;display:inline-flex;flex:none;width:34px;height:19px;margin:0;cursor:pointer}
+.switch input{position:absolute;opacity:0;width:1px;height:1px}
+.switch-track{position:absolute;inset:0;border-radius:20px;background:#aaa;transition:background .15s}
+.switch-track:before{content:"";position:absolute;width:13px;height:13px;left:3px;top:3px;border-radius:50%;background:#fff;transition:transform .15s}
+.switch input:checked+.switch-track{background:var(--ink)}
+.switch input:checked+.switch-track:before{transform:translateX(15px)}
+.switch input:focus-visible+.switch-track{outline:2px solid var(--ac);outline-offset:2px}
+.toggle-state{width:25px;text-align:right;font-size:10px;font-weight:700}
 #main{flex:1;display:flex;justify-content:center;align-items:flex-start;padding:14px;overflow:auto}
 #board{height:calc(100vh - 28px);aspect-ratio:7/10;max-width:100%;box-shadow:0 2px 18px #0003;background:#fff}
 #sel{border-top:1px solid var(--ln);margin-top:12px;padding-top:6px}
@@ -28,9 +38,10 @@ button.s{background:transparent;color:var(--ink);border:1px solid var(--ln)}
 <label>Colours (override)</label><input type="color" id="cb"> background &nbsp; <input type="color" id="ci2"> ink<label>Background texture</label><select id="tex"><option value="none">Flat</option><option value="paper">Paper grain</option><option value="grid">Drawing grid</option><option value="dots">Dot grid</option></select>
 <label>Typography</label><select id="font"><option>Helvetica / Sans</option><option>Georgia / Serif</option><option>Courier / Mono</option></select>
 <label>Caption style</label><select id="cap"><option value="label">Label</option><option value="bar">Bar</option><option value="none">None</option></select>
-<label>Text beneath layout</label><label><input type="checkbox" id="footOn" checked> Show footer text and metadata</label>
-<label>Text blocks inside layout</label><label><input type="checkbox" id="txtBlocks" checked> Show text placeholders</label>
-<small>These toggles do not hide drawing captions, scale bar, or north arrow.</small>
+<div class="toggle-row"><span class="toggle-name">Title text beneath layout</span><label class="switch" title="Show or hide title and footer text"><input type="checkbox" id="footOn" checked aria-label="Title text on or off"><span class="switch-track"></span></label><span id="footState" class="toggle-state">ON</span></div>
+<div class="toggle-row"><span class="toggle-name">Text blocks inside layout</span><label class="switch" title="Use text blocks instead of diagram placeholders"><input type="checkbox" id="txtBlocks" checked aria-label="Internal text blocks on or off"><span class="switch-track"></span></label><span id="txtState" class="toggle-state">ON</span></div>
+<label>Text / diagram placeholder ratio</label><select id="txtDiaRatio"><option value="0">0% text / 100% diagrams</option><option value="25">25% text / 75% diagrams</option><option value="50" selected>50% text / 50% diagrams</option><option value="75">75% text / 25% diagrams</option><option value="100">100% text / 0% diagrams</option></select>
+<small>When OFF, these slots become diagram placeholders. When ON, the ratio controls which diagram/text slots display as text blocks.</small>
 <label>Subtitle</label><input type="text" id="sub" value="Competition entry · Sheet 01"><label>Project details (one per line, max 6)</label><textarea id="meta" rows="4">Location: Vilnius
 Scale 1:200
 Date: 2026
@@ -79,7 +90,7 @@ STY.length=0;STY.push(["Archigram — Pop collage","scatter","free","Archigram P
 function setCtl(){SL.forEach(([k])=>{$("r_"+k).value=S[k];$("v_"+k).textContent=S[k]});$("algo").value=S.algo}
 let CUR;function usePal(){CUR=JSON.parse(JSON.stringify(PAL[$("pal").value]));$("cb").value=CUR.bg;$("ci2").value=CUR.ink}
 function applyStyle(i){const t=STY[i];if(!t)return;Object.assign(S,{algo:t[1],density:t[7],gap:t[8],margin:t[9],radius:t[10],tilt:t[11],outline:t[12],shadow:t[13],seed:S.seed+1,text:t[14]||22});$("can").value=t[2];$("pal").value=PAL.findIndex(p=>p.n==t[3]);$("tex").value=t[4];$("font").value=t[5];$("cap").value=t[6];usePal();setCtl();draw()}
-let slots=[],imgs=[],sel=-1;
+let slots=[],imgs=[],sel=-1,liveTypes=[];
 const SL=[["density","Density",3,30,1],["gap","Spacing (mm)",0,30,1],["margin","Margins (mm)",0,80,1],["radius","Corner radius (mm)",0,40,1],["tilt","Tilt (°)",0,20,.5],["outline","Outline (mm)",0,3,.25],["shadow","Hard shadow (mm)",0,10,1],["text","Text share (%)",5,45,1]];
 const rng=s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -110,25 +121,27 @@ hero:(a,n,r)=>{const hh=a.h*(CAN[$("can").value]?.618:.6);return[{x:a.x,y:a.y,w:
 scatter:(a,n,r)=>Array.from({length:n*2},()=>{const w=a.w*(.12+r()*.2),h=w*(.7+r()*.7);return{x:a.x+r()*(a.w-w),y:a.y+r()*(a.h-h),w,h,rot:(r()-.5)*24,free:1}})};
 const mk=r=>{const x=r();return{t:x<.52?"img":x<.52+S.text/100?"txt":x<.52+S.text/100+.12?"dia":"gfx",txt:TXT[r()*TXT.length|0],v:r()*1e6|0,img:null}};
 function ensure(n){const r=rng(S.seed*131+slots.length);while(slots.length<n){const s=mk(r);if(!slots.length)s.t="img";if(slots.length==1)s.t="txt";slots.push(s)}}
+function getDisplayTypes(n){const candidates=slots.slice(0,n).map((s,i)=>i).filter(i=>slots[i].t==="txt"||slots[i].t==="dia").sort((a,b)=>(slots[a].v-slots[b].v)||a-b);const ratio=$("txtBlocks").checked?(Number($("txtDiaRatio").value)||0)/100:0;const textCount=Math.round(candidates.length*ratio),textIndices=new Set(candidates.slice(0,textCount));return slots.slice(0,n).map((s,i)=>(s.t==="txt"||s.t==="dia")?(textIndices.has(i)?"txt":"dia"):s.t)}
 function place(){let k=0;slots.forEach(s=>{if(s.t=="img"&&!s.img&&imgs.length){s.img=imgs[k%imgs.length];k++}})}
 function layout(n=S.density){const m=S.margin,footOn=$("footOn").checked,a={x:m,y:m,w:W-2*m,h:H-2*m-(footOn?46:34)},r=rng(S.seed*977+5);let R=L[S.algo](a,n,r);
 if(!["collage","cascade","scatter"].includes(S.algo))R=R.map(q=>({...q,x:q.x+S.gap/2,y:q.y+S.gap/2,w:Math.max(4,q.w-S.gap),h:Math.max(4,q.h-S.gap)}));return R}
 function wrap(t,mc){const o=[];t.split(/\n/).forEach(p=>{let l="";p.split(" ").forEach(w=>{if((l+" "+w).trim().length>mc&&l){o.push(l);l=w}else l=(l+" "+w).trim()});o.push(l)});return o}
-function render(ed){const P=CUR,f=FONTS[$("font").value],baseR=layout();ensure(baseR.length);place();const visible=slots.slice(0,baseR.length).map((s,slotIndex)=>({s,slotIndex})).filter(x=>$("txtBlocks").checked||x.s.t!=="txt");const layoutN=S.algo==="scatter"?Math.ceil(visible.length/2):visible.length;const R=$("txtBlocks").checked?baseR:(visible.length?layout(Math.max(1,layoutN)).slice(0,visible.length):[]);const tx=$("tex").value,cp=$("cap").value;
+function render(ed){const P=CUR,f=FONTS[$("font").value],R=layout();ensure(R.length);place();const displayTypes=getDisplayTypes(R.length);liveTypes=displayTypes;const tx=$("tex").value,cp=$("cap").value;
 let o=`<defs><filter id="pg"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .09 0"/></filter><pattern id="gr" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0H0V10" fill="none" stroke="${P.ink}" stroke-opacity=".12" stroke-width=".3"/></pattern><pattern id="dt" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="5" cy="5" r=".6" fill="${P.ink}" fill-opacity=".3"/></pattern></defs><rect width="${W}" height="${H}" fill="${P.bg}"/>`;
 if(tx=="paper")o+=`<rect width="${W}" height="${H}" filter="url(#pg)"/>`;if(tx=="grid")o+=`<rect width="${W}" height="${H}" fill="url(#gr)"/>`;if(tx=="dots")o+=`<rect width="${W}" height="${H}" fill="url(#dt)"/>`;
 o+=`<g font-family="${f}" fill="${P.ink}">`;
-visible.forEach((item,i)=>{const q=R[i],s=item.s,slotIndex=item.slotIndex,r2=rng(S.seed*7+i*13),rot=((r2()-.5)*2*S.tilt)+(q.rot||0),rd=Math.min(S.radius,q.w/2,q.h/2),col=P.a[(i+s.v)%P.a.length],cx=q.x+q.w/2,cy=q.y+q.h/2;
+R.forEach((q,i)=>{const s=slots[i],displayType=displayTypes[i],slotIndex=i,r2=rng(S.seed*7+i*13),rot=((r2()-.5)*2*S.tilt)+(q.rot||0),rd=Math.min(S.radius,q.w/2,q.h/2),col=P.a[(i+s.v)%P.a.length],cx=q.x+q.w/2,cy=q.y+q.h/2;
 o+=`<g data-i="${slotIndex}" transform="rotate(${rot.toFixed(2)} ${cx.toFixed(1)} ${cy.toFixed(1)})"><clipPath id="c${i}"><rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" rx="${rd}"/></clipPath>`;
 if(S.shadow)o+=`<rect x="${q.x+S.shadow}" y="${q.y+S.shadow}" width="${q.w}" height="${q.h}" rx="${rd}" fill="${P.ink}"/>`;
-if(s.t=="img"){if(s.img)o+=`<image href="${s.img}" x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#c${i})"/>`;
+if(displayType=="img"){if(s.img)o+=`<image href="${s.img}" x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#c${i})"/>`;
 else o+=`<rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" rx="${rd}" fill="${col}"/><g clip-path="url(#c${i})" stroke="${P.ink}" stroke-opacity=".25" stroke-width=".4"><path d="M${q.x} ${q.y}L${q.x+q.w} ${q.y+q.h}M${q.x+q.w} ${q.y}L${q.x} ${q.y+q.h}"/></g><text x="${cx}" y="${cy}" font-size="9" text-anchor="middle" fill="${P.ink}" fill-opacity=".6">IMAGE ${i+1}</text>`}
-else if(s.t=="txt"&&s.v%4==1){const hd=s.txt.split("\n")[0],fz=Math.min(q.h*.8,q.w/(hd.length*.62));o+=`<text x="${q.x}" y="${q.y+fz*.85}" font-size="${fz}" font-weight="800" fill="${col}" stroke="${P.ink}" stroke-width=".5" paint-order="stroke">${esc(hd)}</text>`}
-else if(s.t=="txt"&&s.v%4==2){const z=Math.min(q.h,q.w*1.1);o+=`<text x="${q.x}" y="${q.y+z*.82}" font-size="${z}" font-weight="800">${String(i+1).padStart(2,"0")}</text>`}
-else if(s.t=="txt"&&s.v%4==3){const fs=Math.max(4,Math.min(6,q.w/26));o+=`<path d="M${q.x} ${q.y+.5}H${q.x+q.w}" stroke="${P.ink}" stroke-width=".6"/><text x="${q.x}" y="${q.y+fs*1.6}" font-size="${fs*1.2}" font-weight="700">LEGEND</text>`;LEG.slice(0,Math.max(1,Math.floor((q.h-fs*3)/(fs*1.6)))).forEach((t,j)=>{const yy=q.y+fs*3.2+j*fs*1.6;o+=`<rect x="${q.x}" y="${yy-fs*.8}" width="${fs*.9}" height="${fs*.9}" fill="${P.a[j%P.a.length]}" stroke="${P.ink}" stroke-width=".3"/><text x="${q.x+fs*1.6}" y="${yy}" font-size="${fs}">${j+1} ${t}</text>`})}
-else if(s.t=="txt"){const fs=Math.max(5,Math.min(8,q.w/22)),mc=Math.floor(q.w/(fs*.52)),ls=wrap(s.txt,mc),mxl=Math.floor((q.h-12)/(fs*1.35));o+=`<path d="M${q.x} ${q.y+.5}H${q.x+q.w}" stroke="${P.ink}" stroke-width=".6"/>`;
+else if(displayType=="txt"&&s.t=="txt"&&s.v%4==1){const hd=s.txt.split("\n")[0],fz=Math.min(q.h*.8,q.w/(hd.length*.62));o+=`<text x="${q.x}" y="${q.y+fz*.85}" font-size="${fz}" font-weight="800" fill="${col}" stroke="${P.ink}" stroke-width=".5" paint-order="stroke">${esc(hd)}</text>`}
+else if(displayType=="txt"&&s.t=="txt"&&s.v%4==2){const z=Math.min(q.h,q.w*1.1);o+=`<text x="${q.x}" y="${q.y+z*.82}" font-size="${z}" font-weight="800">${String(i+1).padStart(2,"0")}</text>`}
+else if(displayType=="txt"&&s.t=="txt"&&s.v%4==3){const fs=Math.max(4,Math.min(6,q.w/26));o+=`<path d="M${q.x} ${q.y+.5}H${q.x+q.w}" stroke="${P.ink}" stroke-width=".6"/><text x="${q.x}" y="${q.y+fs*1.6}" font-size="${fs*1.2}" font-weight="700">LEGEND</text>`;LEG.slice(0,Math.max(1,Math.floor((q.h-fs*3)/(fs*1.6)))).forEach((t,j)=>{const yy=q.y+fs*3.2+j*fs*1.6;o+=`<rect x="${q.x}" y="${yy-fs*.8}" width="${fs*.9}" height="${fs*.9}" fill="${P.a[j%P.a.length]}" stroke="${P.ink}" stroke-width=".3"/><text x="${q.x+fs*1.6}" y="${yy}" font-size="${fs}">${j+1} ${t}</text>`})}
+else if(displayType=="txt"&&s.t=="txt"){const fs=Math.max(5,Math.min(8,q.w/22)),mc=Math.floor(q.w/(fs*.52)),ls=wrap(s.txt,mc),mxl=Math.floor((q.h-12)/(fs*1.35));o+=`<path d="M${q.x} ${q.y+.5}H${q.x+q.w}" stroke="${P.ink}" stroke-width=".6"/>`;
 ls.slice(0,Math.max(1,mxl)).forEach((l,j)=>{o+=`<text x="${q.x}" y="${q.y+fs*1.5+j*fs*1.35}" font-size="${fs*(j==0?1.25:1)}" font-weight="${j==0?700:400}">${esc(l)}</text>`})}
-else if(s.t=="dia"){const r3=rng(s.v),ix={x:q.x+4,y:q.y+4,w:q.w-8,h:q.h-8};o+=`<rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" rx="${rd}" fill="${P.bg}" stroke="${P.ink}" stroke-width=".5"/><g clip-path="url(#c${i})" fill="none" stroke="${P.ink}" stroke-width=".7">`;
+else if(displayType=="txt"&&s.t=="dia"){const fs=Math.max(5,Math.min(8,q.w/22)),mc=Math.floor(q.w/(fs*.52)),ls=wrap(s.txt,mc),mxl=Math.floor((q.h-12)/(fs*1.35));o+=`<path d="M${q.x} ${q.y+.5}H${q.x+q.w}" stroke="${P.ink}" stroke-width=".6"/>`;ls.slice(0,Math.max(1,mxl)).forEach((l,j)=>{o+=`<text x="${q.x}" y="${q.y+fs*1.5+j*fs*1.35}" font-size="${fs*(j==0?1.25:1)}" font-weight="${j==0?700:400}">${esc(l)}</text>`})}
+else if(displayType=="dia"){const r3=rng(s.v),ix={x:q.x+4,y:q.y+4,w:q.w-8,h:q.h-8};o+=`<rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" rx="${rd}" fill="${P.bg}" stroke="${P.ink}" stroke-width=".5"/><g clip-path="url(#c${i})" fill="none" stroke="${P.ink}" stroke-width=".7">`;
 const k=s.v%5;if(k==3){for(let y=0;y<q.h;y+=7)o+=`<path d="M${q.x} ${q.y+y}l${q.w/2} ${-q.w*.29}l${q.w/2} ${q.w*.29}"/>`}else if(k==4){for(let x=0;x<q.w;x+=q.h/2)o+=`<path d="M${q.x+x} ${q.y+q.h}l${q.h/4} ${-q.h}l${q.h/4} ${q.h}"/>`}else if(k==0)bsp(ix,6,r3).forEach(b=>o+=`<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}"/>`);
 else if(k==1)for(let j=1;j<=6;j++)o+=`<circle cx="${cx}" cy="${cy}" r="${Math.min(q.w,q.h)/2*j/6.5}"/>`;
 else for(let j=0;j<14;j++){const x=q.x+q.w*j/13;o+=`<path d="M${x} ${q.y}L${x+q.h*.4} ${q.y+q.h}"/>`}o+=`</g>`}
@@ -136,10 +149,10 @@ else{const k=s.v%7;o+=`<g clip-path="url(#c${i})">`;if(k==0)o+=`<rect x="${q.x}"
 else if(k==1)o+=`<rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" fill="${P.a[(i+1)%P.a.length]}"/><circle cx="${q.x+q.w*.5}" cy="${q.y+q.h*.5}" r="${Math.min(q.w,q.h)*.38}" fill="${P.a[P.a.length-1]}"/>`;
 else if(k>2)o+=GX(q,k,P,col,i);
 else for(let y=q.y;y<q.y+q.h;y+=6)o+=`<rect x="${q.x}" y="${y}" width="${q.w}" height="3" fill="${col}"/>`;o+=`</g>`}
-if(S.outline&&s.t!="txt")o+=`<rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" rx="${rd}" fill="none" stroke="${P.ink}" stroke-width="${S.outline}"/>`;
-if(cp!="none"&&s.t!="txt"){const lb=`${String(i+1).padStart(2,"0")} — ${{img:"View",dia:"Diagram",gfx:"Detail"}[s.t]}`;
+if(S.outline&&displayType!="txt")o+=`<rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" rx="${rd}" fill="none" stroke="${P.ink}" stroke-width="${S.outline}"/>`;
+if(cp!="none"&&displayType!="txt"){const lb=`${String(i+1).padStart(2,"0")} — ${{img:"View",dia:"Diagram",gfx:"Detail"}[displayType]}`;
 if(cp=="bar")o+=`<g clip-path="url(#c${i})"><rect x="${q.x}" y="${q.y+q.h-7}" width="${q.w}" height="7" fill="${P.ink}"/></g><text x="${q.x+2.5}" y="${q.y+q.h-2.3}" font-size="4" fill="${P.bg}">${lb}</text>`;
-else o+=`<text x="${q.x+2.5}" y="${q.y+q.h-2.5}" font-size="4" fill="${s.t=="img"&&s.img?"#fff":P.ink}" ${s.t=="img"&&s.img?'stroke="#0008" stroke-width=".3" paint-order="stroke"':""}>${lb}</text>`}
+else o+=`<text x="${q.x+2.5}" y="${q.y+q.h-2.5}" font-size="4" fill="${displayType=="img"&&s.img?"#fff":P.ink}" ${displayType=="img"&&s.img?'stroke="#0008" stroke-width=".3" paint-order="stroke"':""}>${lb}</text>`}
 if(ed&&slotIndex==sel)o+=`<rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" rx="${rd}" fill="none" stroke="#e0245e" stroke-width="1.2" stroke-dasharray="4 2"/>`;
 o+=`<rect data-i="${slotIndex}" x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" fill="transparent"/></g>`});
 const m=S.margin,footOn=$("footOn").checked,fy=H-m-40,sy=footOn?fy+10:H-m-30;
@@ -154,7 +167,7 @@ const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([data],{
 function shrink(file){return new Promise(res=>{const u=URL.createObjectURL(file),im=new Image();im.onload=()=>{const k=Math.min(1,2400/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*k;c.height=im.height*k;c.getContext("2d").drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);res(c.toDataURL("image/jpeg",.9))};im.onerror=()=>res(null);im.src=u})}
 async function imp(files,target){for(const f of files){if(!f.type.startsWith("image/"))continue;const d=await shrink(f);if(!d)continue;if(target!=null){slots[target].img=d;slots[target].t="img";return}
 const e=slots.find(s=>s.t=="img"&&!s.img);if(e)e.img=d;else imgs.push(d)}draw()}
-function pick(){const s=slots[sel];$("sel").hidden=!s;if(!s)return;$("st").value=s.t;$("tx").value=s.txt}
+function pick(){const s=slots[sel];$("sel").hidden=!s;if(!s){$("tx").value="";return}$("st").value=liveTypes[sel]||s.t;$("tx").value=s.txt}
 // controls
 $("algo").innerHTML=Object.keys(L).map(k=>`<option>${k}</option>`).join("");$("algo").value=S.algo;
 $("pal").innerHTML=PAL.map((p,i)=>`<option value="${i}">${p.n}</option>`).join("");
@@ -163,7 +176,12 @@ $("sl").innerHTML=SL.map(([k,n,a,b,st])=>`<label>${n}<span class="v" id="v_${k}"
 SL.forEach(([k])=>$("r_"+k).oninput=e=>{S[k]=+e.target.value;$("v_"+k).textContent=S[k];draw()});
 ["algo","pal","tex","font","cap","can"].forEach(i=>$(i).onchange=()=>{if(i=="algo")S.algo=$(i).value;if(i=="pal")usePal();draw()});
 $("sty").innerHTML='<option value="">— choose a style —</option>'+STY.map((s,i)=>`<option value="${i}">${s[0]}</option>`).join("");$("sty").onchange=e=>applyStyle(e.target.value);
-$("cb").oninput=e=>{CUR.bg=e.target.value;draw()};$("ci2").oninput=e=>{CUR.ink=e.target.value;draw()};$("title").oninput=draw;["sub","meta","den","rq1","rq2"].forEach(i=>$(i).oninput=draw);$("footOn").onchange=draw;$("txtBlocks").onchange=()=>{if(!$("txtBlocks").checked&&sel>=0&&slots[sel]?.t==="txt"){sel=-1;pick()}draw()};
+$("cb").oninput=e=>{CUR.bg=e.target.value;draw()};$("ci2").oninput=e=>{CUR.ink=e.target.value;draw()};$("title").oninput=draw;["sub","meta","den","rq1","rq2"].forEach(i=>$(i).oninput=draw);
+function syncTextToggles(){ $("footState").textContent=$("footOn").checked?"ON":"OFF"; $("txtState").textContent=$("txtBlocks").checked?"ON":"OFF"; $("txtDiaRatio").disabled=!$("txtBlocks").checked; }
+$("footOn").onchange=()=>{syncTextToggles();draw()};
+$("txtBlocks").onchange=()=>{syncTextToggles();if(sel>=0&&slots[sel]&&(liveTypes[sel]==="txt"||slots[sel].t==="txt")){sel=-1;pick()}draw()};
+$("txtDiaRatio").onchange=draw;
+syncTextToggles();
 $("re").onclick=()=>{S.seed++;draw()};
 $("sh").onclick=()=>{const r=rng(Date.now()),old=slots.filter(s=>s.img).map(s=>s.img);imgs=old.concat(imgs);slots=[];sel=-1;pick();S.seed++;draw()};
 $("im").onclick=()=>$("fi").click();$("fi").onchange=e=>imp([...e.target.files]);
