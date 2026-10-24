@@ -199,7 +199,7 @@ else if(o=="pixel"){const sx=Math.min(w-1,(Math.floor(xx/cs)+.5)*cs|0),sy=Math.m
 nv[i]=v}V=nv}}
 if(V&&!col)for(let i=0;i<n;i++)d[i*4]=d[i*4+1]=d[i*4+2]=V[i]*255;
 const out=x.createImageData(w,h);out.data.set(d);for(let i=0;i<n;i++)out.data[i*4+3]=A?A[i]:255;x.putImageData(out,0,0);return c}
-function go(){cancelAnimationFrame(T);T=requestAnimationFrame(show)}
+function go(){cancelAnimationFrame(T);T=requestAnimationFrame(()=>{show();notifyLibrary()})}
 function show(){const cv=$("cv");if(!items.length){cv.width=cv.height=1;return}const it=items[cur];let o;if(showOrig){o=document.createElement("canvas");const k=Math.min(1,1100/Math.max(it.cv.width,it.cv.height));o.width=it.cv.width*k;o.height=it.cv.height*k;o.getContext("2d").drawImage(it.cv,0,0,o.width,o.height)}else o=run(it.cv,1100,ST);
 cv.width=o.width;cv.height=o.height;cv.getContext("2d").drawImage(o,0,0);
 items.forEach((t,i)=>{const r=run(t.cv,170,ST),e=t.th;e.width=r.width;e.height=r.height;e.getContext("2d").drawImage(r,0,0);e.className=i==cur?"on":""})}
@@ -211,19 +211,22 @@ function shareData(c){
 }
 function notifyLibrary(){
  if(!INTEGRATED||window.parent===window)return;
- const images=items.filter(it=>it.shareData).map(it=>({id:it.id,name:it.name,data:it.shareData}));
+ const images=items.filter(it=>it.shareable).map(it=>{
+  const rendered=run(it.cv,1800,ST);
+  return {id:it.id,name:it.name,data:rendered.toDataURL("image/jpeg",.9)};
+ });
  window.parent.postMessage({type:"restyler-image-library",images},location.origin);
 }
 function moveItem(from,to){
  if(from<0||to<0||from>=items.length||to>=items.length||from===to)return;
  [items[from],items[to]]=[items[to],items[from]];
- cur=to;items.forEach(it=>$("th").appendChild(it.wrap));go();notifyLibrary();
+ cur=to;items.forEach(it=>$("th").appendChild(it.wrap));go();
 }
 function removeItem(index){
  if(index<0||index>=items.length)return;
  const it=items[index];it.wrap.remove();items.splice(index,1);
  cur=items.length?Math.min(index,items.length-1):0;
- go();notifyLibrary();
+ go();
 }
 function addItem(c,name){
  const th=document.createElement("canvas"),wrap=document.createElement("div");wrap.className="thumb-card";
@@ -231,11 +234,11 @@ function addItem(c,name){
  th.onclick=()=>{cur=items.findIndex(t=>t.th===th);go()};
  const controls=document.createElement("div");controls.className="thumb-controls";
  const button=(label,title,fn)=>{const b=document.createElement("button");b.type="button";b.className="s";b.textContent=label;b.title=title;b.setAttribute("aria-label",title);b.onclick=e=>{e.stopPropagation();fn()};return b};
- const item={cv:c,name,th,wrap,shareData:name==="sample-plan.png"?null:shareData(c),id:nextImageId++};
+ const item={cv:c,name,th,wrap,shareable:name!=="sample-plan.png",id:nextImageId++};
  controls.append(button("↑","Move image up",()=>moveItem(items.indexOf(item),items.indexOf(item)-1)));
  controls.append(button("↓","Move image down",()=>moveItem(items.indexOf(item),items.indexOf(item)+1)));
  controls.append(button("×","Remove image",()=>removeItem(items.indexOf(item))));
- wrap.append(th,nameTag,controls);$("th").appendChild(wrap);items.push(item);cur=items.length-1;notifyLibrary();
+ wrap.append(th,nameTag,controls);$("th").appendChild(wrap);items.push(item);cur=items.length-1;
 }
 async function imp(files){for(const f of files){const svg=f.type=="image/svg+xml"||/\.svg$/i.test(f.name);if(!f.type.startsWith("image/")&&!svg)continue;const u=URL.createObjectURL(f);await new Promise(res=>{const im=new Image();im.onload=()=>{const nw=im.naturalWidth||1000,nh=im.naturalHeight||700,k=svg?3000/Math.max(nw,nh):Math.min(1,5000/Math.max(nw,nh)),c=document.createElement("canvas");c.width=Math.round(nw*k);c.height=Math.round(nh*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);addItem(c,f.name);URL.revokeObjectURL(u);res()};im.onerror=res;im.src=u})}go()}
 function sample(){const c=document.createElement("canvas");c.width=1000;c.height=700;const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,1000,700);x.strokeStyle="#222";x.lineWidth=3;
