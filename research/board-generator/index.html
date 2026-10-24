@@ -128,12 +128,7 @@ function place(){
  const imageSlots=slots.filter(s=>s.t==="img"&&!s.manualImg);
  if(INTEGRATED){
   let pool=[...sharedLibrary.map(x=>x.data).filter(Boolean),...imgs];
-  if(pool.length>imageSlots.length&&imageSlots.length){
-   pool=pool.slice();
-   const r=rng(S.seed*7919+pool.length*17+imageSlots.length);
-   for(let i=pool.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
-   pool=pool.slice(0,imageSlots.length);
-  }
+  if(pool.length>imageSlots.length)pool=pool.slice(0,imageSlots.length);
   imageSlots.forEach((s,i)=>{s.img=pool[i]||null});
   return;
  }
