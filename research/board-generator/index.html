@@ -59,6 +59,8 @@ Sheet: 01/04</textarea><label>Scale denominator (1:n)</label><input type="text" 
 <div id="main"><svg id="board" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 1000"></svg></div>
 <script>
 const W=700,H=1000,$=id=>document.getElementById(id);
+const INTEGRATED=new URLSearchParams(location.search).get("integrated")==="1";
+let sharedLibrary=[];
 const NP=[{n:"Archigram Pop",bg:"#fff3d6",ink:"#111111",a:["#ff2e88","#19b5fe","#ffd400","#ff6a13","#7be0c3","#111111"]},
 {n:"Archigram Plug-in",bg:"#fdf6e3",ink:"#1b1b3a",a:["#f25c54","#f7b267","#4ecdc4","#1a535c","#ffe66d"]},
 {n:"Signal orange",bg:"#f6f6f4",ink:"#111111",a:["#ffffff","#e8e8e4","#cfd8dc","#2b2b2b","#ff5a1f"]},
@@ -122,7 +124,26 @@ scatter:(a,n,r)=>Array.from({length:n*2},()=>{const w=a.w*(.12+r()*.2),h=w*(.7+r
 const mk=r=>{const x=r();return{t:x<.52?"img":x<.52+S.text/100?"txt":x<.52+S.text/100+.12?"dia":"gfx",txt:TXT[r()*TXT.length|0],v:r()*1e6|0,img:null}};
 function ensure(n){const r=rng(S.seed*131+slots.length);while(slots.length<n){const s=mk(r);if(!slots.length)s.t="img";if(slots.length==1)s.t="txt";slots.push(s)}}
 function getDisplayTypes(n){const candidates=slots.slice(0,n).map((s,i)=>i).filter(i=>slots[i].t==="txt"||slots[i].t==="dia").sort((a,b)=>(slots[a].v-slots[b].v)||a-b);const ratio=$("txtBlocks").checked?(Number($("txtDiaRatio").value)||0)/100:0;const textCount=Math.round(candidates.length*ratio),textIndices=new Set(candidates.slice(0,textCount));return slots.slice(0,n).map((s,i)=>(s.t==="txt"||s.t==="dia")?(textIndices.has(i)?"txt":"dia"):s.t)}
-function place(){let k=0;slots.forEach(s=>{if(s.t=="img"&&!s.img&&imgs.length){s.img=imgs[k%imgs.length];k++}})}
+function place(){
+ const imageSlots=slots.filter(s=>s.t==="img"&&!s.manualImg);
+ if(INTEGRATED){
+  let pool=[...sharedLibrary.map(x=>x.data).filter(Boolean),...imgs];
+  if(pool.length>imageSlots.length&&imageSlots.length){
+   pool=pool.slice();
+   const r=rng(S.seed*7919+pool.length*17+imageSlots.length);
+   for(let i=pool.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
+   pool=pool.slice(0,imageSlots.length);
+  }
+  imageSlots.forEach((s,i)=>{s.img=pool[i]||null});
+  return;
+ }
+ let k=0;slots.forEach(s=>{if(s.t=="img"&&!s.img&&imgs.length){s.img=imgs[k%imgs.length];k++}})
+}
+if(INTEGRATED)window.addEventListener("message",e=>{
+ if(e.source!==parent||e.origin!==location.origin||!e.data||e.data.type!=="restyler-image-library")return;
+ sharedLibrary=Array.isArray(e.data.images)?e.data.images:[];
+ draw();
+});
 function layout(n=S.density){const m=S.margin,footOn=$("footOn").checked,a={x:m,y:m,w:W-2*m,h:H-2*m-(footOn?46:34)},r=rng(S.seed*977+5);let R=L[S.algo](a,n,r);
 if(!["collage","cascade","scatter"].includes(S.algo))R=R.map(q=>({...q,x:q.x+S.gap/2,y:q.y+S.gap/2,w:Math.max(4,q.w-S.gap),h:Math.max(4,q.h-S.gap)}));return R}
 function wrap(t,mc){const o=[];t.split(/\n/).forEach(p=>{let l="";p.split(" ").forEach(w=>{if((l+" "+w).trim().length>mc&&l){o.push(l);l=w}else l=(l+" "+w).trim()});o.push(l)});return o}
@@ -165,7 +186,7 @@ function svgOut(){const b=$("board").cloneNode(false);b.innerHTML=render(false);
 async function save(name,data){try{if(window.claude){const d=await claude.use("downloads");if(d){await d.save({filename:name,data});return}}}catch(e){if(e&&e.code=="declined")return}
 const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([data],{type:"image/svg+xml"}));a.download=name;a.click()}
 function shrink(file){return new Promise(res=>{const u=URL.createObjectURL(file),im=new Image();im.onload=()=>{const k=Math.min(1,2400/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*k;c.height=im.height*k;c.getContext("2d").drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);res(c.toDataURL("image/jpeg",.9))};im.onerror=()=>res(null);im.src=u})}
-async function imp(files,target){for(const f of files){if(!f.type.startsWith("image/"))continue;const d=await shrink(f);if(!d)continue;if(target!=null){slots[target].img=d;slots[target].t="img";return}
+async function imp(files,target){for(const f of files){if(!f.type.startsWith("image/"))continue;const d=await shrink(f);if(!d)continue;if(target!=null){slots[target].img=d;slots[target].t="img";slots[target].manualImg=true;return}
 const e=slots.find(s=>s.t=="img"&&!s.img);if(e)e.img=d;else imgs.push(d)}draw()}
 function pick(){const s=slots[sel];$("sel").hidden=!s;if(!s){$("tx").value="";return}$("st").value=liveTypes[sel]||s.t;$("tx").value=s.txt}
 // controls
@@ -186,7 +207,7 @@ $("re").onclick=()=>{S.seed++;draw()};
 $("sh").onclick=()=>{const r=rng(Date.now()),old=slots.filter(s=>s.img).map(s=>s.img);imgs=old.concat(imgs);slots=[];sel=-1;pick();S.seed++;draw()};
 $("im").onclick=()=>$("fi").click();$("fi").onchange=e=>imp([...e.target.files]);
 $("ri").onclick=()=>$("f1").click();$("f1").onchange=async e=>{if(sel>=0){await imp([...e.target.files],sel);draw()}};
-$("ci").onclick=()=>{if(sel>=0){slots[sel].img=null;draw()}};
+$("ci").onclick=()=>{if(sel>=0){slots[sel].img=null;slots[sel].manualImg=true;draw()}};
 $("st").onchange=e=>{if(sel>=0){slots[sel].t=e.target.value;draw()}};$("tx").oninput=e=>{if(sel>=0){slots[sel].txt=e.target.value;draw()}};
 $("board").onclick=e=>{const i=e.target.dataset.i;sel=i==null?-1:+i;pick();draw()};
 const m=$("main");m.ondragover=e=>e.preventDefault();m.ondrop=e=>{e.preventDefault();const i=e.target.dataset&&e.target.dataset.i;imp([...e.dataTransfer.files],i==null?null:+i).then(draw)};
