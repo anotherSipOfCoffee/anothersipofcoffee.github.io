@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Layout + Image Design Workbench</title>
+<style>
+:root{--bg:#f4f3f0;--panel:#fff;--ink:#1c1c1c;--muted:#777;--line:#d8d6d0}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font:13px/1.4 system-ui,Helvetica,Arial,sans-serif}
+header{height:56px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+.title{display:flex;align-items:baseline;gap:10px;min-width:0}.title strong{font-size:14px;white-space:nowrap}.title small{color:var(--muted)}
+nav{display:flex;gap:6px;flex-wrap:wrap}nav button{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:4px;padding:7px 10px;font:inherit;cursor:pointer}
+nav button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+#status{font-size:11px;color:var(--muted);white-space:nowrap}main{height:calc(100% - 56px);position:relative}
+iframe{display:block;border:0;width:100%;height:100%;background:var(--bg)}iframe[hidden]{display:none}
+@media(max-width:640px){header{height:auto;min-height:72px;align-items:flex-start;flex-direction:column;gap:7px}main{height:calc(100% - 72px)}.title{flex-wrap:wrap}.title small{display:none}nav button{padding:6px 8px}#status{font-size:9px}}
+</style></head><body>
+<header><div class="title"><strong>LAYOUT + IMAGE DESIGN WORKBENCH</strong><small>Shared images · independent layouts</small></div>
+<nav aria-label="Choose workspace"><button id="layoutTab" aria-pressed="true" type="button">Layout Generator</button><button id="imageTab" aria-pressed="false" type="button">Image Designer</button></nav>
+<span id="status" aria-live="polite">0 source images shared</span></header>
+<main><iframe id="layoutFrame" title="Layout Generator" src="../board-generator/?integrated=1"></iframe><iframe id="restylerFrame" title="Image Designer" src="../drawing-restyler/?integrated=1" hidden></iframe></main>
+<script>
+const layoutFrame=document.getElementById("layoutFrame"),restylerFrame=document.getElementById("restylerFrame");
+const layoutTab=document.getElementById("layoutTab"),imageTab=document.getElementById("imageTab"),status=document.getElementById("status");
+let imageLibrary=[];
+function show(which){const isLayout=which==="layout";layoutFrame.hidden=!isLayout;restylerFrame.hidden=isLayout;layoutTab.setAttribute("aria-pressed",String(isLayout));imageTab.setAttribute("aria-pressed",String(!isLayout))}
+function sendLibrary(){if(layoutFrame.contentWindow)layoutFrame.contentWindow.postMessage({type:"restyler-image-library",images:imageLibrary},location.origin);status.textContent=imageLibrary.length+" source image"+(imageLibrary.length===1?"":"s")+" shared"}
+layoutTab.onclick=()=>show("layout");imageTab.onclick=()=>show("image");
+window.addEventListener("message",event=>{if(event.origin!==location.origin||event.source!==restylerFrame.contentWindow||!event.data||event.data.type!=="restyler-image-library")return;imageLibrary=Array.isArray(event.data.images)?event.data.images:[];sendLibrary()});
+layoutFrame.addEventListener("load",sendLibrary);
+show("layout");
+</script></body></html>
