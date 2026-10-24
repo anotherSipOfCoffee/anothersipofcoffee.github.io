@@ -135,7 +135,7 @@ const PR={
 "Avant-garde · Blueprint palimpsest":()=>B("flatten",["thresh",{thr:150,soft:14}],["chroma",{px:3}],["colorize",{c0:"#d9ecff",c2:"#0c2a55"}],["grid",{gc:"#83b6e6",sp:15,op:29}],["grain",{g:7}])};
 const PL=["Archigram pop|#111111|#ff2e88|#fff3d6","Cyanotype|#eaf2ff|#2f78c0|#0f3a6b","Ozalid|#2a3f9a|#6f7fd0|#fbfaf4","Vellum ink|#1a1a1a|#8a8a8a|#f1ede2","Sepia linen|#3b2a18|#a67c4a|#efe2c8","De Stijl|#111111|#d62828|#f4f1e8","Bauhaus|#151515|#1d4e9e|#efe6d2","Constructivist|#161616|#d62828|#efe6d2","Swiss|#111111|#e30613|#ffffff","Beaux-Arts wash|#3a2c20|#b9946a|#f1e8d4","Brutalist concrete|#0d0d0d|#8f8c85|#bdbab3","Memphis|#1a1a1a|#ff7eb6|#fff7ef",
 "Photostat cream|#0c0c0c|#777777|#f0efe8","Van Dyke brown|#392319|#976c41|#e4d1ad","Moiré neon|#17132b|#ff3fa4|#f7f0df","Thermal map|#10173a|#f24a3d|#ffd34e","Industrial night|#101820|#ff5b35|#b7d3da","Moss and rust|#1e3028|#b95737|#e0d3b8","Electric signal|#061b3b|#34f5ff|#ff286f","Limestone graphite|#292824|#8f8c85|#f1ede2","Ink on vellum|#1a1a1a|#8a8a8a|#f1ede2","Pigment wash|#24344a|#b87f55|#f0e7d5","Acid digital|#231b48|#b08cff|#eeff4d"];
-let ST=PR["Ink on tracing vellum"](),items=[],cur=0,T,showOrig=false;
+let ST=PR["Ink on tracing vellum"](),items=[],cur=0,T,syncTimer,showOrig=false;
 const ks=Object.keys(PR),gp=f=>ks.filter(f).map(k=>`<option>${k}</option>`).join("");$("pr").innerHTML=`<optgroup label="Canonical drawing & print conventions">${gp(k=>!k.startsWith("Digital")&&!k.startsWith("Avant-garde")&&!k.startsWith("Niche"))}</optgroup><optgroup label="Digital-era (dither · glyph · pattern)">${gp(k=>k.startsWith("Digital"))}</optgroup><optgroup label="Avant-garde & niche experiments">${gp(k=>k.startsWith("Avant-garde")||k.startsWith("Niche"))}</optgroup>`;
 $("pl").innerHTML='<option value="">— choose —</option>'+PL.map((p,i)=>`<option value="${i}">${p.split("|")[0]}</option>`).join("");
 $("ad").innerHTML='<option value="">+ choose a layer…</option>'+Object.keys(OPS).map(k=>`<option value="${k}">${OPS[k].n}</option>`).join("");
@@ -199,7 +199,7 @@ else if(o=="pixel"){const sx=Math.min(w-1,(Math.floor(xx/cs)+.5)*cs|0),sy=Math.m
 nv[i]=v}V=nv}}
 if(V&&!col)for(let i=0;i<n;i++)d[i*4]=d[i*4+1]=d[i*4+2]=V[i]*255;
 const out=x.createImageData(w,h);out.data.set(d);for(let i=0;i<n;i++)out.data[i*4+3]=A?A[i]:255;x.putImageData(out,0,0);return c}
-function go(){cancelAnimationFrame(T);T=requestAnimationFrame(()=>{show();notifyLibrary()})}
+function go(){cancelAnimationFrame(T);T=requestAnimationFrame(show);if(INTEGRATED){clearTimeout(syncTimer);syncTimer=setTimeout(notifyLibrary,250)}}
 function show(){const cv=$("cv");if(!items.length){cv.width=cv.height=1;return}const it=items[cur];let o;if(showOrig){o=document.createElement("canvas");const k=Math.min(1,1100/Math.max(it.cv.width,it.cv.height));o.width=it.cv.width*k;o.height=it.cv.height*k;o.getContext("2d").drawImage(it.cv,0,0,o.width,o.height)}else o=run(it.cv,1100,ST);
 cv.width=o.width;cv.height=o.height;cv.getContext("2d").drawImage(o,0,0);
 items.forEach((t,i)=>{const r=run(t.cv,170,ST),e=t.th;e.width=r.width;e.height=r.height;e.getContext("2d").drawImage(r,0,0);e.className=i==cur?"on":""})}
@@ -228,13 +228,13 @@ function removeItem(index){
  cur=items.length?Math.min(index,items.length-1):0;
  go();
 }
-function addItem(c,name){
+function addItem(c,name,shareable=true){
  const th=document.createElement("canvas"),wrap=document.createElement("div");wrap.className="thumb-card";
  const nameTag=document.createElement("div");nameTag.className="thumb-name";nameTag.textContent=name;
  th.onclick=()=>{cur=items.findIndex(t=>t.th===th);go()};
  const controls=document.createElement("div");controls.className="thumb-controls";
  const button=(label,title,fn)=>{const b=document.createElement("button");b.type="button";b.className="s";b.textContent=label;b.title=title;b.setAttribute("aria-label",title);b.onclick=e=>{e.stopPropagation();fn()};return b};
- const item={cv:c,name,th,wrap,shareable:name!=="sample-plan.png",id:nextImageId++};
+ const item={cv:c,name,th,wrap,shareable,id:nextImageId++};
  controls.append(button("↑","Move image up",()=>moveItem(items.indexOf(item),items.indexOf(item)-1)));
  controls.append(button("↓","Move image down",()=>moveItem(items.indexOf(item),items.indexOf(item)+1)));
  controls.append(button("×","Remove image",()=>removeItem(items.indexOf(item))));
@@ -245,7 +245,7 @@ function sample(){const c=document.createElement("canvas");c.width=1000;c.height
 x.strokeRect(80,80,520,360);x.strokeRect(80,80,200,160);x.strokeRect(280,240,320,200);x.beginPath();x.arc(700,230,110,0,7);x.stroke();x.beginPath();x.arc(700,230,60,0,7);x.stroke();
 x.lineWidth=1.5;for(let i=0;i<30;i++){x.beginPath();x.moveTo(100+i*16,480);x.lineTo(140+i*16,640);x.stroke()}
 const g=x.createLinearGradient(640,460,940,460);g.addColorStop(0,"#000");g.addColorStop(1,"#fff");x.fillStyle=g;x.fillRect(640,470,300,170);x.strokeRect(640,470,300,170);
-x.fillStyle="#999";x.beginPath();x.moveTo(300,100);x.lineTo(360,40);x.lineTo(420,100);x.fill();addItem(c,"sample-plan.png");go()}
+x.fillStyle="#999";x.beginPath();x.moveTo(300,100);x.lineTo(360,40);x.lineTo(420,100);x.fill();addItem(c,"sample-plan.png",false);go()}
 async function save(name,blob){try{if(window.claude){const d=await claude.use("downloads");if(d){await d.save({filename:name,data:blob});return}}}catch(e){if(e&&e.code=="declined")return}const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click()}
 const exp=async it=>{const c=run(it.cv,+$("exs").value,ST),b=await new Promise(r=>c.toBlob(r,"image/png"));await save(it.name.replace(/\.\w+$/,"")+"_styled.png",b)};
 $("e1").onclick=()=>items[cur]&&exp(items[cur]);$("ea").onclick=async()=>{for(const it of items)await exp(it)};
