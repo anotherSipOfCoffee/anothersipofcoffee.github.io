@@ -28,6 +28,9 @@ button.s{background:transparent;color:var(--ink);border:1px solid var(--ln)}
 <label>Colours (override)</label><input type="color" id="cb"> background &nbsp; <input type="color" id="ci2"> ink<label>Background texture</label><select id="tex"><option value="none">Flat</option><option value="paper">Paper grain</option><option value="grid">Drawing grid</option><option value="dots">Dot grid</option></select>
 <label>Typography</label><select id="font"><option>Helvetica / Sans</option><option>Georgia / Serif</option><option>Courier / Mono</option></select>
 <label>Caption style</label><select id="cap"><option value="label">Label</option><option value="bar">Bar</option><option value="none">None</option></select>
+<label>Text beneath layout</label><label><input type="checkbox" id="footOn" checked> Show footer text and metadata</label>
+<label>Text blocks inside layout</label><label><input type="checkbox" id="txtBlocks" checked> Show text placeholders</label>
+<small>These toggles do not hide drawing captions, scale bar, or north arrow.</small>
 <label>Subtitle</label><input type="text" id="sub" value="Competition entry · Sheet 01"><label>Project details (one per line, max 6)</label><textarea id="meta" rows="4">Location: Vilnius
 Scale 1:200
 Date: 2026
@@ -108,15 +111,15 @@ scatter:(a,n,r)=>Array.from({length:n*2},()=>{const w=a.w*(.12+r()*.2),h=w*(.7+r
 const mk=r=>{const x=r();return{t:x<.52?"img":x<.52+S.text/100?"txt":x<.52+S.text/100+.12?"dia":"gfx",txt:TXT[r()*TXT.length|0],v:r()*1e6|0,img:null}};
 function ensure(n){const r=rng(S.seed*131+slots.length);while(slots.length<n){const s=mk(r);if(!slots.length)s.t="img";if(slots.length==1)s.t="txt";slots.push(s)}}
 function place(){let k=0;slots.forEach(s=>{if(s.t=="img"&&!s.img&&imgs.length){s.img=imgs[k%imgs.length];k++}})}
-function layout(){const m=S.margin,a={x:m,y:m,w:W-2*m,h:H-2*m-46},r=rng(S.seed*977+5);let R=L[S.algo](a,S.density,r);
+function layout(n=S.density){const m=S.margin,footOn=$("footOn").checked,a={x:m,y:m,w:W-2*m,h:H-2*m-(footOn?46:34)},r=rng(S.seed*977+5);let R=L[S.algo](a,n,r);
 if(!["collage","cascade","scatter"].includes(S.algo))R=R.map(q=>({...q,x:q.x+S.gap/2,y:q.y+S.gap/2,w:Math.max(4,q.w-S.gap),h:Math.max(4,q.h-S.gap)}));return R}
 function wrap(t,mc){const o=[];t.split(/\n/).forEach(p=>{let l="";p.split(" ").forEach(w=>{if((l+" "+w).trim().length>mc&&l){o.push(l);l=w}else l=(l+" "+w).trim()});o.push(l)});return o}
-function render(ed){const P=CUR,f=FONTS[$("font").value],R=layout();ensure(R.length);place();const tx=$("tex").value,cp=$("cap").value;
+function render(ed){const P=CUR,f=FONTS[$("font").value],baseR=layout();ensure(baseR.length);place();const visible=slots.slice(0,baseR.length).map((s,slotIndex)=>({s,slotIndex})).filter(x=>$("txtBlocks").checked||x.s.t!=="txt");const layoutN=S.algo==="scatter"?Math.ceil(visible.length/2):visible.length;const R=$("txtBlocks").checked?baseR:(visible.length?layout(Math.max(1,layoutN)).slice(0,visible.length):[]);const tx=$("tex").value,cp=$("cap").value;
 let o=`<defs><filter id="pg"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .09 0"/></filter><pattern id="gr" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0H0V10" fill="none" stroke="${P.ink}" stroke-opacity=".12" stroke-width=".3"/></pattern><pattern id="dt" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="5" cy="5" r=".6" fill="${P.ink}" fill-opacity=".3"/></pattern></defs><rect width="${W}" height="${H}" fill="${P.bg}"/>`;
 if(tx=="paper")o+=`<rect width="${W}" height="${H}" filter="url(#pg)"/>`;if(tx=="grid")o+=`<rect width="${W}" height="${H}" fill="url(#gr)"/>`;if(tx=="dots")o+=`<rect width="${W}" height="${H}" fill="url(#dt)"/>`;
 o+=`<g font-family="${f}" fill="${P.ink}">`;
-R.forEach((q,i)=>{const s=slots[i],r2=rng(S.seed*7+i*13),rot=((r2()-.5)*2*S.tilt)+(q.rot||0),rd=Math.min(S.radius,q.w/2,q.h/2),col=P.a[(i+s.v)%P.a.length],cx=q.x+q.w/2,cy=q.y+q.h/2;
-o+=`<g data-i="${i}" transform="rotate(${rot.toFixed(2)} ${cx.toFixed(1)} ${cy.toFixed(1)})"><clipPath id="c${i}"><rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" rx="${rd}"/></clipPath>`;
+visible.forEach((item,i)=>{const q=R[i],s=item.s,slotIndex=item.slotIndex,r2=rng(S.seed*7+i*13),rot=((r2()-.5)*2*S.tilt)+(q.rot||0),rd=Math.min(S.radius,q.w/2,q.h/2),col=P.a[(i+s.v)%P.a.length],cx=q.x+q.w/2,cy=q.y+q.h/2;
+o+=`<g data-i="${slotIndex}" transform="rotate(${rot.toFixed(2)} ${cx.toFixed(1)} ${cy.toFixed(1)})"><clipPath id="c${i}"><rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" rx="${rd}"/></clipPath>`;
 if(S.shadow)o+=`<rect x="${q.x+S.shadow}" y="${q.y+S.shadow}" width="${q.w}" height="${q.h}" rx="${rd}" fill="${P.ink}"/>`;
 if(s.t=="img"){if(s.img)o+=`<image href="${s.img}" x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#c${i})"/>`;
 else o+=`<rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" rx="${rd}" fill="${col}"/><g clip-path="url(#c${i})" stroke="${P.ink}" stroke-opacity=".25" stroke-width=".4"><path d="M${q.x} ${q.y}L${q.x+q.w} ${q.y+q.h}M${q.x+q.w} ${q.y}L${q.x} ${q.y+q.h}"/></g><text x="${cx}" y="${cy}" font-size="9" text-anchor="middle" fill="${P.ink}" fill-opacity=".6">IMAGE ${i+1}</text>`}
@@ -137,12 +140,13 @@ if(S.outline&&s.t!="txt")o+=`<rect x="${q.x}" y="${q.y}" width="${q.w}" height="
 if(cp!="none"&&s.t!="txt"){const lb=`${String(i+1).padStart(2,"0")} — ${{img:"View",dia:"Diagram",gfx:"Detail"}[s.t]}`;
 if(cp=="bar")o+=`<g clip-path="url(#c${i})"><rect x="${q.x}" y="${q.y+q.h-7}" width="${q.w}" height="7" fill="${P.ink}"/></g><text x="${q.x+2.5}" y="${q.y+q.h-2.3}" font-size="4" fill="${P.bg}">${lb}</text>`;
 else o+=`<text x="${q.x+2.5}" y="${q.y+q.h-2.5}" font-size="4" fill="${s.t=="img"&&s.img?"#fff":P.ink}" ${s.t=="img"&&s.img?'stroke="#0008" stroke-width=".3" paint-order="stroke"':""}>${lb}</text>`}
-if(ed&&i==sel)o+=`<rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" rx="${rd}" fill="none" stroke="#e0245e" stroke-width="1.2" stroke-dasharray="4 2"/>`;
-o+=`<rect data-i="${i}" x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" fill="transparent"/></g>`});
-const m=S.margin,fy=H-m-40;o+=`<path d="M${m} ${fy}H${W-m}" stroke="${P.ink}" stroke-width="1"/><text x="${m}" y="${fy+16}" font-size="15" font-weight="800">${esc($("title").value)}</text><text x="${m}" y="${fy+27}" font-size="7">${esc($("sub").value)}</text>`;
-$("meta").value.split("\n").slice(0,6).forEach((t,j)=>{o+=`<text x="${m+250+(j%2)*105}" y="${fy+13+(j>>1)*9}" font-size="5.5">${esc(t)}</text>`});
-if($("rq1").checked){const den=Math.max(1,+$("den").value||200),U=[10,5,2,1].find(v=>v*1000/den<=110)||1,sg=U*1000/den/5,x0=W-m-130;for(let j=0;j<5;j++)o+=`<rect x="${x0+j*sg}" y="${fy+10}" width="${sg}" height="2.2" fill="${j%2?P.bg:P.ink}" stroke="${P.ink}" stroke-width=".3"/>`;o+=`<text x="${x0}" y="${fy+19}" font-size="4">0</text><text x="${x0+5*sg}" y="${fy+19}" font-size="4" text-anchor="end">${U} m</text><text x="${x0}" y="${fy+25}" font-size="4">1:${den}</text>`}
-if($("rq2").checked)o+=`<g transform="translate(${W-m-7} ${fy+6})"><path d="M0 0L5 16L0 12L-5 16Z" fill="${P.ink}"/><text y="26" font-size="6" text-anchor="middle">N</text></g>`;o+=`</g>`;return o}
+if(ed&&slotIndex==sel)o+=`<rect x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" rx="${rd}" fill="none" stroke="#e0245e" stroke-width="1.2" stroke-dasharray="4 2"/>`;
+o+=`<rect data-i="${slotIndex}" x="${q.x}" y="${q.y}" width="${q.w}" height="${q.h}" fill="transparent"/></g>`});
+const m=S.margin,footOn=$("footOn").checked,fy=H-m-40,sy=footOn?fy+10:H-m-30;
+if(footOn){o+=`<path d="M${m} ${fy}H${W-m}" stroke="${P.ink}" stroke-width="1"/><text x="${m}" y="${fy+16}" font-size="15" font-weight="800">${esc($("title").value)}</text><text x="${m}" y="${fy+27}" font-size="7">${esc($("sub").value)}</text>`;
+$("meta").value.split("\n").slice(0,6).forEach((t,j)=>{o+=`<text x="${m+250+(j%2)*105}" y="${fy+13+(j>>1)*9}" font-size="5.5">${esc(t)}</text>`})}
+if($("rq1").checked){const den=Math.max(1,+$("den").value||200),U=[10,5,2,1].find(v=>v*1000/den<=110)||1,sg=U*1000/den/5,x0=W-m-130;for(let j=0;j<5;j++)o+=`<rect x="${x0+j*sg}" y="${sy}" width="${sg}" height="2.2" fill="${j%2?P.bg:P.ink}" stroke="${P.ink}" stroke-width=".3"/>`;o+=`<text x="${x0}" y="${sy+9}" font-size="4">0</text><text x="${x0+5*sg}" y="${sy+9}" font-size="4" text-anchor="end">${U} m</text><text x="${x0}" y="${sy+15}" font-size="4">1:${den}</text>`}
+if($("rq2").checked)o+=`<g transform="translate(${W-m-7} ${sy-4})"><path d="M0 0L5 16L0 12L-5 16Z" fill="${P.ink}"/><text y="26" font-size="6" text-anchor="middle">N</text></g>`;o+=`</g>`;return o}
 function draw(){$("board").innerHTML=render(true)}
 function svgOut(){const b=$("board").cloneNode(false);b.innerHTML=render(false);b.setAttribute("width","700mm");b.setAttribute("height","1000mm");b.removeAttribute("id");b.removeAttribute("style");return'<?xml version="1.0" encoding="UTF-8"?>\n'+b.outerHTML.replace(/\sdata-i="\d+"/g,"")}
 async function save(name,data){try{if(window.claude){const d=await claude.use("downloads");if(d){await d.save({filename:name,data});return}}}catch(e){if(e&&e.code=="declined")return}
@@ -159,7 +163,7 @@ $("sl").innerHTML=SL.map(([k,n,a,b,st])=>`<label>${n}<span class="v" id="v_${k}"
 SL.forEach(([k])=>$("r_"+k).oninput=e=>{S[k]=+e.target.value;$("v_"+k).textContent=S[k];draw()});
 ["algo","pal","tex","font","cap","can"].forEach(i=>$(i).onchange=()=>{if(i=="algo")S.algo=$(i).value;if(i=="pal")usePal();draw()});
 $("sty").innerHTML='<option value="">— choose a style —</option>'+STY.map((s,i)=>`<option value="${i}">${s[0]}</option>`).join("");$("sty").onchange=e=>applyStyle(e.target.value);
-$("cb").oninput=e=>{CUR.bg=e.target.value;draw()};$("ci2").oninput=e=>{CUR.ink=e.target.value;draw()};$("title").oninput=draw;["sub","meta","den","rq1","rq2"].forEach(i=>$(i).oninput=draw);
+$("cb").oninput=e=>{CUR.bg=e.target.value;draw()};$("ci2").oninput=e=>{CUR.ink=e.target.value;draw()};$("title").oninput=draw;["sub","meta","den","rq1","rq2"].forEach(i=>$(i).oninput=draw);$("footOn").onchange=draw;$("txtBlocks").onchange=draw;
 $("re").onclick=()=>{S.seed++;draw()};
 $("sh").onclick=()=>{const r=rng(Date.now()),old=slots.filter(s=>s.img).map(s=>s.img);imgs=old.concat(imgs);slots=[];sel=-1;pick();S.seed++;draw()};
 $("im").onclick=()=>$("fi").click();$("fi").onchange=e=>imp([...e.target.files]);
