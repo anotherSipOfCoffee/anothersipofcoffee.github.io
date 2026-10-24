@@ -163,7 +163,7 @@ $("sl").innerHTML=SL.map(([k,n,a,b,st])=>`<label>${n}<span class="v" id="v_${k}"
 SL.forEach(([k])=>$("r_"+k).oninput=e=>{S[k]=+e.target.value;$("v_"+k).textContent=S[k];draw()});
 ["algo","pal","tex","font","cap","can"].forEach(i=>$(i).onchange=()=>{if(i=="algo")S.algo=$(i).value;if(i=="pal")usePal();draw()});
 $("sty").innerHTML='<option value="">— choose a style —</option>'+STY.map((s,i)=>`<option value="${i}">${s[0]}</option>`).join("");$("sty").onchange=e=>applyStyle(e.target.value);
-$("cb").oninput=e=>{CUR.bg=e.target.value;draw()};$("ci2").oninput=e=>{CUR.ink=e.target.value;draw()};$("title").oninput=draw;["sub","meta","den","rq1","rq2"].forEach(i=>$(i).oninput=draw);$("footOn").onchange=draw;$("txtBlocks").onchange=draw;
+$("cb").oninput=e=>{CUR.bg=e.target.value;draw()};$("ci2").oninput=e=>{CUR.ink=e.target.value;draw()};$("title").oninput=draw;["sub","meta","den","rq1","rq2"].forEach(i=>$(i).oninput=draw);$("footOn").onchange=draw;$("txtBlocks").onchange=()=>{if(!$("txtBlocks").checked&&sel>=0&&slots[sel]?.t==="txt"){sel=-1;pick()}draw()};
 $("re").onclick=()=>{S.seed++;draw()};
 $("sh").onclick=()=>{const r=rng(Date.now()),old=slots.filter(s=>s.img).map(s=>s.img);imgs=old.concat(imgs);slots=[];sel=-1;pick();S.seed++;draw()};
 $("im").onclick=()=>$("fi").click();$("fi").onchange=e=>imp([...e.target.files]);
