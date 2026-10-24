@@ -141,7 +141,16 @@ hero:(a,n,r)=>{const hh=a.h*(CAN[$("can").value]?.618:.6);return[{x:a.x,y:a.y,w:
 scatter:(a,n,r)=>Array.from({length:n*2},()=>{const w=a.w*(.12+r()*.2),h=w*(.7+r()*.7);return{x:a.x+r()*(a.w-w),y:a.y+r()*(a.h-h),w,h,rot:(r()-.5)*24,free:1}})};
 const mk=r=>{const x=r();return{t:x<.52?"img":x<.52+S.text/100?"txt":x<.52+S.text/100+.12?"dia":"gfx",txt:"",v:r()*1e6|0,img:null}};
 function ensure(n){const r=rng(S.seed*131+slots.length);while(slots.length<n){const s=mk(r);if(!slots.length)s.t="img";if(slots.length==1)s.t="txt";slots.push(s)}}
-function getDisplayTypes(n){const candidates=slots.slice(0,n).map((s,i)=>i).filter(i=>slots[i].t==="txt"||slots[i].t==="dia").sort((a,b)=>(slots[a].v-slots[b].v)||a-b);const ratio=$("txtBlocks").checked?(Number($("txtDiaRatio").value)||0)/100:0;const textCount=Math.round(candidates.length*ratio),textIndices=new Set(candidates.slice(0,textCount));return slots.slice(0,n).map((s,i)=>(s.t==="txt"||s.t==="dia")?(textIndices.has(i)?"txt":"dia"):s.t)}
+function getDisplayTypes(n){
+ const candidates=slots.slice(0,n).map((s,i)=>i).filter(i=>slots[i].t==="txt"||slots[i].t==="dia").sort((a,b)=>(slots[a].v-slots[b].v)||a-b);
+ const forcedText=candidates.filter(i=>slots[i].manualRole&&slots[i].t==="txt"||String(slots[i].txt||"").trim()!=="");
+ const forcedRole=new Map(candidates.filter(i=>slots[i].manualRole).map(i=>[i,slots[i].t]));
+ const ratio=$("txtBlocks").checked?(Number($("txtDiaRatio").value)||0)/100:0;
+ const target=Math.max(forcedText.length,Math.round(candidates.length*ratio));
+ const textIndices=new Set(forcedText);
+ for(const i of candidates){if(textIndices.size>=target)break;if(!forcedRole.has(i))textIndices.add(i)}
+ return slots.slice(0,n).map((s,i)=>forcedRole.has(i)?forcedRole.get(i):(s.t==="txt"||s.t==="dia")?(textIndices.has(i)?"txt":"dia"):s.t)
+}
 function place(){
  const imageSlots=slots.filter(s=>s.t==="img"&&!s.manualImg);
  if(INTEGRATED){
@@ -216,7 +225,7 @@ $("sh").onclick=()=>{const r=rng(Date.now()),old=slots.filter(s=>s.img).map(s=>s
 $("im").onclick=()=>$("fi").click();$("fi").onchange=e=>imp([...e.target.files]);
 $("ri").onclick=()=>$("f1").click();$("f1").onchange=async e=>{if(sel>=0){await imp([...e.target.files],sel);draw()}};
 $("ci").onclick=()=>{if(sel>=0){slots[sel].img=null;slots[sel].manualImg=true;draw()}};
-$("st").onchange=e=>{if(sel>=0){slots[sel].t=e.target.value;draw()}};$("tx").oninput=e=>{if(sel>=0){slots[sel].txt=e.target.value;draw()}};
+$("st").onchange=e=>{if(sel>=0){slots[sel].t=e.target.value;slots[sel].manualRole=true;draw()}};$("tx").oninput=e=>{if(sel>=0){slots[sel].txt=e.target.value;if(String(e.target.value).trim()){slots[sel].t="txt";slots[sel].manualRole=true}draw()}};
 $("board").onclick=e=>{const i=e.target.dataset.i;sel=i==null?-1:+i;pick();draw()};
 const m=$("main");m.ondragover=e=>e.preventDefault();m.ondrop=e=>{e.preventDefault();const i=e.target.dataset&&e.target.dataset.i;imp([...e.dataTransfer.files],i==null?null:+i).then(draw)};
 $("xs").onclick=()=>save("board-700x1000mm.svg",svgOut());
