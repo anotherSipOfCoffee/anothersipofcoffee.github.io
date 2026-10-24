@@ -146,11 +146,28 @@ function ui(){$("ly").innerHTML=ST.map((l,i)=>{const D=OPS[l.op];return`<div cla
 $("ly").oninput=e=>{const t=e.target,i=+t.dataset.i,k=t.dataset.k;if(k==null)return;const v=t.type=="checkbox"?t.checked:t.type=="range"||t.tagName=="SELECT"?+t.value:t.value;if(k=="__on"){ST[i].on=v;ui()}else{ST[i].p[k]=v;if(t.type=="range")t.previousElementSibling.querySelector(".v").textContent=v}go()};
 $("ly").onclick=e=>{const a=e.target.dataset.a,i=+e.target.dataset.i;if(!a)return;if(a=="rm")ST.splice(i,1);else{const j=a=="up"?i-1:i+1;if(j<0||j>=ST.length)return;[ST[i],ST[j]]=[ST[j],ST[i]]}ui();go()};
 $("ad").onchange=e=>{if(e.target.value){ST.push(mk(e.target.value));e.target.value="";ui();go()}};
+function carrySettingsIntoPreset(preset,current){
+ const byOp={};current.forEach(layer=>(byOp[layer.op]||(byOp[layer.op]=[])).push(layer));
+ const used={},merged=preset.map(layer=>{
+  const k=layer.op,j=used[k]||0;used[k]=j+1;
+  const old=byOp[k]?.[j];if(!old)return cloneRecipe(layer);
+  const defaults=layer.p||{},oldParams=old.p||{},params={...defaults};
+  Object.keys(defaults).forEach(key=>{if(Object.prototype.hasOwnProperty.call(oldParams,key))params[key]=oldParams[key]});
+  return {...cloneRecipe(layer),on:old.on!==false,p:params};
+ });
+ const allowedCount={};merged.forEach(layer=>allowedCount[layer.op]=(allowedCount[layer.op]||0)+1);
+ const seen={};current.forEach(layer=>{
+  const k=layer.op,idx=seen[k]||0;seen[k]=idx+1;
+  if(idx>= (allowedCount[k]||0))merged.push(cloneRecipe(layer));
+ });
+ return merged;
+}
 $("pr").onchange=e=>{
  const next=e.target.value;
  rememberStyle();
+ const current=cloneRecipe(ST);
  currentStyleKey=next;
- ST=styleMemory[next]?cloneRecipe(styleMemory[next]):PR[next]();
+ ST=styleMemory[next]?cloneRecipe(styleMemory[next]):carrySettingsIntoPreset(PR[next](),current);
  ui();go();
 };
 $("prReset").onclick=()=>{
