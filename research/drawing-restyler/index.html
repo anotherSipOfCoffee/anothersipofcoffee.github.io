@@ -234,9 +234,9 @@ if(V&&!col)for(let i=0;i<n;i++)d[i*4]=d[i*4+1]=d[i*4+2]=V[i]*255;
 const out=x.createImageData(w,h);out.data.set(d);for(let i=0;i<n;i++)out.data[i*4+3]=A?A[i]:255;x.putImageData(out,0,0);return c}
 function rememberStyle(){if(currentStyleKey)styleMemory[currentStyleKey]=cloneRecipe(ST)}
 function go(){rememberStyle();cancelAnimationFrame(T);T=requestAnimationFrame(show);if(INTEGRATED){clearTimeout(syncTimer);syncTimer=setTimeout(notifyLibrary,250)}}
-function show(){const cv=$("cv");if(!items.length){cv.width=cv.height=1;return}const it=items[cur];let o;if(showOrig){o=document.createElement("canvas");const k=Math.min(1,1100/Math.max(it.cv.width,it.cv.height));o.width=it.cv.width*k;o.height=it.cv.height*k;o.getContext("2d").drawImage(it.cv,0,0,o.width,o.height)}else o=run(it.cv,1100,ST);
+function show(){const cv=$("cv");if(!items.length){cv.width=cv.height=1;return}const it=items[cur];let o;if(showOrig){o=document.createElement("canvas");const k=Math.min(1,1100/Math.max(it.cv.width,it.cv.height));o.width=it.cv.width*k;o.height=it.cv.height*k;o.getContext("2d").drawImage(it.cv,0,0,o.width,o.height)}else o=renderItem(it,1100);
 cv.width=o.width;cv.height=o.height;cv.getContext("2d").drawImage(o,0,0);
-items.forEach((t,i)=>{const r=run(t.cv,170,ST),e=t.th;e.width=r.width;e.height=r.height;e.getContext("2d").drawImage(r,0,0);e.className=i==cur?"on":""})}
+items.forEach((t,i)=>{const r=renderItem(t,170),e=t.th;e.width=r.width;e.height=r.height;e.getContext("2d").drawImage(r,0,0);e.className=i==cur?"on":""})}
 function shareData(c){
  const max=2200,k=Math.min(1,max/Math.max(c.width,c.height));
  const out=document.createElement("canvas");out.width=Math.max(1,Math.round(c.width*k));out.height=Math.max(1,Math.round(c.height*k));
@@ -246,8 +246,8 @@ function shareData(c){
 function notifyLibrary(){
  if(!INTEGRATED||window.parent===window)return;
  const images=items.filter(it=>it.shareable).map(it=>{
-  const rendered=run(it.cv,1800,ST);
-  return {id:it.id,name:it.name,data:rendered.toDataURL("image/jpeg",.9)};
+  const rendered=renderItem(it,Math.max(it.cv.width,it.cv.height));
+  return {id:it.id,name:it.name,width:it.cv.width,height:it.cv.height,original:it.originalData||it.cv.toDataURL("image/png"),data:it.originalOnly&&it.originalData?it.originalData:rendered.toDataURL("image/png")};
  });
  window.parent.postMessage({type:"restyler-image-library",images},location.origin);
 }
@@ -262,30 +262,30 @@ function removeItem(index){
  cur=items.length?Math.min(index,items.length-1):0;
  go();
 }
-function addItem(c,name,shareable=true){
+function addItem(c,name,shareable=true,originalData=null){
  const th=document.createElement("canvas"),wrap=document.createElement("div");wrap.className="thumb-card";
  const nameTag=document.createElement("div");nameTag.className="thumb-name";nameTag.textContent=name;
- th.onclick=()=>{cur=items.findIndex(t=>t.th===th);go()};
+ th.onclick=()=>{cur=items.findIndex(t=>t.th===th);if(window.syncQualityUI)window.syncQualityUI();go()};
  const controls=document.createElement("div");controls.className="thumb-controls";
  const button=(label,title,fn)=>{const b=document.createElement("button");b.type="button";b.className="s";b.textContent=label;b.title=title;b.setAttribute("aria-label",title);b.onclick=e=>{e.stopPropagation();fn()};return b};
- const item={cv:c,name,th,wrap,shareable,id:nextImageId++};
+ const item={cv:c,name,th,wrap,shareable,originalData,id:nextImageId++};
  controls.append(button("↑","Move image up",()=>moveItem(items.indexOf(item),items.indexOf(item)-1)));
  controls.append(button("↓","Move image down",()=>moveItem(items.indexOf(item),items.indexOf(item)+1)));
  controls.append(button("×","Remove image",()=>removeItem(items.indexOf(item))));
  wrap.append(th,nameTag,controls);$("th").appendChild(wrap);items.push(item);cur=items.length-1;
 }
-async function imp(files){for(const f of files){const svg=f.type=="image/svg+xml"||/\.svg$/i.test(f.name);if(!f.type.startsWith("image/")&&!svg)continue;const u=URL.createObjectURL(f);await new Promise(res=>{const im=new Image();im.onload=()=>{const nw=im.naturalWidth||1000,nh=im.naturalHeight||700,k=svg?3000/Math.max(nw,nh):Math.min(1,5000/Math.max(nw,nh)),c=document.createElement("canvas");c.width=Math.round(nw*k);c.height=Math.round(nh*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);addItem(c,f.name);URL.revokeObjectURL(u);res()};im.onerror=res;im.src=u})}go()}
+async function imp(files){for(const f of files){try{const asset=await ResearchPresets.readImage(f);const im=new Image();await new Promise((resolve,reject)=>{im.onload=resolve;im.onerror=reject;im.src=asset.data});const c=document.createElement("canvas");c.width=asset.width;c.height=asset.height;c.getContext("2d").drawImage(im,0,0);addItem(c,f.name,true,asset.data)}catch(error){$("qualityStatus").textContent=f.name+": "+(error.message||"Could not read image")}}if(window.syncQualityUI)window.syncQualityUI();go()}
 function sample(){const c=document.createElement("canvas");c.width=1000;c.height=700;const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,1000,700);x.strokeStyle="#222";x.lineWidth=3;
 x.strokeRect(80,80,520,360);x.strokeRect(80,80,200,160);x.strokeRect(280,240,320,200);x.beginPath();x.arc(700,230,110,0,7);x.stroke();x.beginPath();x.arc(700,230,60,0,7);x.stroke();
 x.lineWidth=1.5;for(let i=0;i<30;i++){x.beginPath();x.moveTo(100+i*16,480);x.lineTo(140+i*16,640);x.stroke()}
 const g=x.createLinearGradient(640,460,940,460);g.addColorStop(0,"#000");g.addColorStop(1,"#fff");x.fillStyle=g;x.fillRect(640,470,300,170);x.strokeRect(640,470,300,170);
 x.fillStyle="#999";x.beginPath();x.moveTo(300,100);x.lineTo(360,40);x.lineTo(420,100);x.fill();addItem(c,"sample-plan.png",false);go()}
 async function save(name,blob){try{if(window.claude){const d=await claude.use("downloads");if(d){await d.save({filename:name,data:blob});return}}}catch(e){if(e&&e.code=="declined")return}const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click()}
-const exp=async it=>{const c=run(it.cv,+$("exs").value,ST),b=await new Promise(r=>c.toBlob(r,"image/png"));await save(it.name.replace(/\.\w+$/,"")+"_styled.png",b)};
+const exp=async it=>{const c=renderItem(it,$("exs").value==="source"?Math.max(it.cv.width,it.cv.height):+$("exs").value),b=await new Promise(r=>c.toBlob(r,"image/png"));await save(it.name.replace(/\.\w+$/,"")+"_styled.png",b)};
 $("e1").onclick=()=>items[cur]&&exp(items[cur]);$("ea").onclick=async()=>{for(const it of items)await exp(it)};
 $("im").onclick=()=>$("fi").click();$("fi").onchange=e=>imp([...e.target.files]);$("sm").onclick=sample;
 $("rm").onclick=()=>removeItem(cur);
 const cm=$("cmp"),on=v=>{showOrig=v;show()};cm.onmousedown=cm.ontouchstart=()=>on(true);cm.onmouseup=cm.onmouseleave=cm.ontouchend=()=>on(false);
 document.ondragover=e=>e.preventDefault();document.ondrop=e=>{e.preventDefault();imp([...e.dataTransfer.files])};
-ui();sample();
-</script></body></html>
+ui();
+</script><script src="../shared/presets.js?v=20261102"></script><script src="quality.js?v=20261102"></script></body></html>
