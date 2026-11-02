@@ -104,11 +104,28 @@
     ['Architecture · competition hero','hero','golden','Monochrome','none',0,'none',6,15,35,0,0,0,0]
   ];
   const group=document.createElement('optgroup');group.label='Architecture · preserve drawings';archStyles.forEach(t=>{const i=STY.push(t)-1;group.append(new Option(t[0],i))});$('sty').prepend(group);
-  const baseStyle=applyStyle;applyStyle=function(i){baseStyle(i);if(STY[i]?.[0].startsWith('Architecture')){$('protectImages').checked=true;$('imageFit').value='meet';$('imageTreatment').value='none';$('rq1').checked=false;$('rq2').checked=false;draw()}};
+  const baseStyle=applyStyle,customState={},customControls={};let customPalette=null;
+  const styleControlIds=['can','algo','pal','cb','ci2','tex','font','cap','protectImages','imageFit','imageTreatment','rq1','rq2'];
+  function captureEdit(e){const id=e.target.id;if(id.startsWith('r_')){const key=id.slice(2);if(SL.some(s=>s[0]===key))customState[key]=S[key]}
+    if(styleControlIds.includes(id)){customControls[id]=e.target.type==='checkbox'?e.target.checked:e.target.value;if(id==='algo')customState.algo=S.algo;if(id==='pal')customPalette=JSON.parse(JSON.stringify(CUR))}}
+  $('side').addEventListener('input',captureEdit);$('side').addEventListener('change',captureEdit);
+  applyStyle=function(i,reset=false){
+    if(i===''||!STY[i])return;
+    if(reset){Object.keys(customState).forEach(k=>delete customState[k]);Object.keys(customControls).forEach(k=>delete customControls[k]);customPalette=null}
+    const seed=S.seed;baseStyle(i);S.seed=seed;
+    if(STY[i][0].startsWith('Architecture')){$('protectImages').checked=true;$('imageFit').value='meet';$('imageTreatment').value='none';$('rq1').checked=false;$('rq2').checked=false}
+    Object.assign(S,customState);RP.applyControls(customControls);
+    if(customPalette)CUR=JSON.parse(JSON.stringify(customPalette));
+    if(customControls.cb)CUR.bg=customControls.cb;if(customControls.ci2)CUR.ink=customControls.ci2;
+    $('cb').value=CUR.bg;$('ci2').value=CUR.ink;setCtl();draw();
+    status(reset?'Current style reset to its defaults.':'Style changed; latest custom settings retained.');
+  };
   $('sty').onchange=e=>applyStyle(e.target.value);
+  const resetStyle=document.createElement('button');resetStyle.id='resetBoardStyle';resetStyle.className='s';resetStyle.textContent='Reset current style';resetStyle.onclick=()=>applyStyle($('sty').value,true);$('sty').after(resetStyle);
+  $('sty').previousElementSibling.textContent='Style preset · keep custom settings';
   $('saveStyle').onclick=()=>RP.download('board-style.json',{format:'research-style',version:1,kind:'board',name:$('sty').selectedOptions[0]?.textContent||'Custom board',settings:{...S},controls:RP.controls(controls),palette:CUR});
   $('loadStyle').onclick=()=>$('styleFile').click();
-  $('styleFile').onchange=async e=>{try{const p=await RP.readPreset(e.target.files[0],'board'),v=RP.validateControls(p.controls,controls),s=p.settings;if(!s||!Object.hasOwn(L,s.algo))throw Error('Invalid layout algorithm');const clean={algo:s.algo};for(const [k,,min,max] of SL){if(!Number.isFinite(s[k])||s[k]<min||s[k]>max)throw Error('Invalid '+k);clean[k]=s[k]}if(!Number.isSafeInteger(s.seed)||s.seed<0)throw Error('Invalid seed');clean.seed=s.seed;const c=p.palette;if(!c||!/^#[0-9a-f]{6}$/i.test(c.bg)||!/^#[0-9a-f]{6}$/i.test(c.ink)||!Array.isArray(c.a)||!c.a.length||c.a.length>30||c.a.some(x=>!/^#[0-9a-f]{6}$/i.test(x)))throw Error('Invalid palette');Object.assign(S,clean);CUR={n:String(c.n||'Imported'),bg:c.bg,ink:c.ink,a:[...c.a]};RP.applyControls(v);setCtl();syncTextToggles();sourceUI();draw();status('Imported style and custom settings.')}catch(error){status('Import failed: '+error.message)}e.target.value=''};
+  $('styleFile').onchange=async e=>{try{const p=await RP.readPreset(e.target.files[0],'board'),v=RP.validateControls(p.controls,controls),s=p.settings;if(!s||!Object.hasOwn(L,s.algo))throw Error('Invalid layout algorithm');const clean={algo:s.algo};for(const [k,,min,max] of SL){if(!Number.isFinite(s[k])||s[k]<min||s[k]>max)throw Error('Invalid '+k);clean[k]=s[k]}if(!Number.isSafeInteger(s.seed)||s.seed<0)throw Error('Invalid seed');clean.seed=s.seed;const c=p.palette;if(!c||!/^#[0-9a-f]{6}$/i.test(c.bg)||!/^#[0-9a-f]{6}$/i.test(c.ink)||!Array.isArray(c.a)||!c.a.length||c.a.length>30||c.a.some(x=>!/^#[0-9a-f]{6}$/i.test(x)))throw Error('Invalid palette');Object.assign(S,clean);Object.assign(customState,clean);Object.assign(customControls,Object.fromEntries(Object.entries(v).filter(([k])=>styleControlIds.includes(k))));customPalette=JSON.parse(JSON.stringify(c));CUR={n:String(c.n||'Imported'),bg:c.bg,ink:c.ink,a:[...c.a]};RP.applyControls(v);setCtl();syncTextToggles();sourceUI();draw();status('Imported style and custom settings.')}catch(error){status('Import failed: '+error.message)}e.target.value=''};
   // Print-scale decorations are opt-in: fitting images does not establish CAD scale.
   $('rq1').checked=false;$('rq2').checked=false;
   $('msg').textContent='SVG keeps original embedded assets. Print / PDF exports one 700 × 1000 mm page per board; choose no margins, no headers, 100% scale. Fit-to-board images are not automatically to architectural scale.';

@@ -36,7 +36,7 @@ button{padding:6px 9px;margin:3px 3px 0 0;background:var(--ink);color:var(--bg);
 <small style="display:block">Adds upscale and background flattening in front of the recipe — use for raster, low-res or unevenly lit sources.</small>
 <h2>Canonical styles</h2>
 <select id="pr"></select><button class="s" id="prReset" type="button">Reset current style</button>
-<small>Each style remembers its own layer edits. Reset restores the selected style’s original recipe.</small>
+<small>Your latest layer values, effect strength and protection settings carry across styles. Only Reset current style restores defaults.</small>
 <label>Colours from a palette</label><select id="pl"></select>
 <h2>Recipe layers</h2>
 <div id="ly"></div>
@@ -288,4 +288,4 @@ $("rm").onclick=()=>removeItem(cur);
 const cm=$("cmp"),on=v=>{showOrig=v;show()};cm.onmousedown=cm.ontouchstart=()=>on(true);cm.onmouseup=cm.onmouseleave=cm.ontouchend=()=>on(false);
 document.ondragover=e=>e.preventDefault();document.ondrop=e=>{e.preventDefault();imp([...e.dataTransfer.files])};
 ui();
-</script><script src="../shared/presets.js?v=20261102"></script><script src="quality.js?v=20261102"></script></body></html>
+</script><script src="../shared/presets.js?v=20261102"></script><script src="../shared/style-state.js?v=20261102b"></script><script src="quality.js?v=20261102b"></script></body></html>

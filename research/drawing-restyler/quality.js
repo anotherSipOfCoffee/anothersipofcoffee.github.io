@@ -24,11 +24,26 @@ let renderItem;
     'Architecture · gentle contrast':()=>B(['levels',{contrast:5,gamma:1,bp:0,wp:255}])
   };
   const group=document.createElement('optgroup');group.label='Architecture · continuous detail';Object.entries(safePresets).forEach(([name,fn])=>{PR[name]=fn;group.append(new Option(name,name))});$('pr').prepend(group);
-  let qualityMemory={};
-  function rememberQuality(){qualityMemory[currentStyleKey]=RP.controls(settingsIds)}
-  const oldRemember=rememberStyle;rememberStyle=function(){oldRemember();rememberQuality()};
-  $('pr').onchange=e=>{rememberStyle();currentStyleKey=e.target.value;ST=styleMemory[currentStyleKey]?cloneRecipe(styleMemory[currentStyleKey]):PR[currentStyleKey]();if(qualityMemory[currentStyleKey])RP.applyControls(qualityMemory[currentStyleKey]);$('effectValue').textContent=$('effectAmount').value+'%';ui();go()};
-  $('prReset').onclick=()=>{ST=PR[currentStyleKey]();$('effectAmount').value=currentStyleKey.startsWith('Architecture')?'35':'100';$('protectInk').checked=currentStyleKey.startsWith('Architecture');$('keepAlpha').checked=true;$('inkThreshold').value='130';$('effectValue').textContent=$('effectAmount').value+'%';ui();go()};
+  const parameterMemory=ResearchStyleState.createParameterMemory();
+  const oldRemember=rememberStyle;
+  rememberStyle=function(){oldRemember();parameterMemory.remember(ST)};
+  $('pr').onchange=e=>{
+    rememberStyle();currentStyleKey=e.target.value;
+    const recipe=styleMemory[currentStyleKey]||PR[currentStyleKey]();
+    ST=parameterMemory.apply(recipe);
+    // Fidelity and export controls are global latest settings, never per-style snapshots.
+    ui();go();$('qualityStatus').textContent='Style changed; latest custom settings retained.';
+  };
+  $('prReset').onclick=()=>{
+    ST=PR[currentStyleKey]();
+    $('effectAmount').value=currentStyleKey.startsWith('Architecture')?'35':'100';
+    $('protectInk').checked=currentStyleKey.startsWith('Architecture');
+    $('keepAlpha').checked=true;$('inkThreshold').value='130';
+    if(importedDefaults[currentStyleKey])RP.applyControls(importedDefaults[currentStyleKey]);
+    $('effectValue').textContent=$('effectAmount').value+'%';
+    ui();go();$('qualityStatus').textContent='Current style reset to its defaults.';
+  };
+  const importedDefaults={};
   function originalCanvas(it,max){const c=document.createElement('canvas'),k=Math.min(1,max/Math.max(it.cv.width,it.cv.height));c.width=Math.max(1,Math.round(it.cv.width*k));c.height=Math.max(1,Math.round(it.cv.height*k));c.getContext('2d').drawImage(it.cv,0,0,c.width,c.height);return c}
   renderItem=function(it,max){
     const amount=+$('effectAmount').value/100;
@@ -54,7 +69,7 @@ let renderItem;
   }
   $('downloadStyle').onclick=()=>RP.download('image-style.json',{format:'research-style',version:1,kind:'image',name:currentStyleKey,recipe:cloneRecipe(ST),controls:RP.controls(settingsIds)});
   $('importStyle').onclick=()=>$('recipeFile').click();
-  function applyRecipe(p){const recipe=validatedRecipe(p.recipe),controls=RP.validateControls(p.controls,settingsIds);if(typeof p.name!=='string'||p.name.length>160)throw Error('Invalid style name');rememberStyle();const name='Imported · '+p.name.replace(/^Imported · /,'');PR[name]=()=>cloneRecipe(recipe);if(![...$('pr').options].some(o=>o.value===name))$('pr').append(new Option(name,name));currentStyleKey=name;ST=recipe;$('pr').value=name;RP.applyControls(controls);$('effectValue').textContent=$('effectAmount').value+'%';ui();go();$('qualityStatus').textContent='Imported style and all custom settings.'}
+  function applyRecipe(p){const recipe=validatedRecipe(p.recipe),controls=RP.validateControls(p.controls,settingsIds);if(typeof p.name!=='string'||p.name.length>160)throw Error('Invalid style name');rememberStyle();const name='Imported · '+p.name.replace(/^Imported · /,'');PR[name]=()=>cloneRecipe(recipe);importedDefaults[name]={...controls};if(![...$('pr').options].some(o=>o.value===name))$('pr').append(new Option(name,name));currentStyleKey=name;ST=recipe;$('pr').value=name;RP.applyControls(controls);$('effectValue').textContent=$('effectAmount').value+'%';ui();go();$('qualityStatus').textContent='Imported style and all custom settings.'}
   $('recipeFile').onchange=async e=>{try{applyRecipe(await RP.readPreset(e.target.files[0],'image'))}catch(error){$('qualityStatus').textContent='Import failed: '+error.message}e.target.value=''};
   $('ja').onclick=()=>{try{const a=JSON.parse($('js').value);ST=validatedRecipe(a);ui();go();$('qualityStatus').textContent='Recipe applied.'}catch(e){$('qualityStatus').textContent='Invalid recipe: '+e.message}};
   // Export Original directly when possible; no needless resampling or conversion.
